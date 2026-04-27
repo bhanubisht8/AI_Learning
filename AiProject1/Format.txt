@@ -1,0 +1,49 @@
+1. Install AD Server with NPS and LDAP Role
+
+2. Configure AD 
+
+3. Configure NPS and Fortinet Clinet IP in AD Serevr
+
+4. Create an security group in AD
+
+5. Create and User and add that user to the above security group.
+
+6. Go to the setting of this user and then in Dial-up tab add static IP add the static IP which you want to give the VPN user.
+
+7. Now Configure Radius Server Configuration in Fortigate Fireiwall 
+
+8. Then at Radius Server to User Group in Fortigate Firewall
+
+9. Then Configure SSL-VPN Setting and add the User Group in Authentication. 
+
+10. Now try to connect the SSL VPN from the users laptop/desktop.
+
+11. Now the user should be able to connect and the defined static ip should be assigned to the user
+
+12. Now for password change we have to configure the LDAP setting in the AD 
+
+13. For LDAP we need to configure AD CS role and then configure this role.
+
+14. PART A — Open Certificate Templates Console
+
+15. PART B — Duplicate Template
+
+16. PART C — Configure Template
+
+17. PART D — Issue Template from CA
+
+18. PART E — Verify Template Issued
+
+19. PART F — Request Certificate on Domain Controller
+
+20. PART G — Verify Certificate
+
+21. PART H — Restart Server
+
+22. PART 1 — Export Root CA Certificate (for FortiGate)
+
+23. PART 2 — Import CA Certificate in FortiGate not the local certificate that is for LDAP and it will be only on the AD
+
+24. PART 3 — Configure LDAP (LDAPS) on FortiGate on port 636
+
+25. Allow Password Change in LDAP CLI in Fortigate

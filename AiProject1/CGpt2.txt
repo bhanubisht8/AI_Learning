@@ -1,0 +1,493 @@
+Is there any way possible that we can assign a static IP to ssl vpn client from fortigate firewall 
+
+Yes Bhanu, it is possible to assign a static IP to an SSL-VPN user in FortiGate.
+
+You can do it in two ways:
+
+✅ Method 1: Assign Static IP Directly to User (Local User)
+Steps
+Go to User & Authentication > User Definition
+Edit the user account
+Enable Specify IPv4 address
+Enter the static IP you want to assign (must be from SSL VPN IP pool range)
+Save
+CLI Equivalent
+config user local
+    edit <username>
+        set type password
+        set passwd <password>
+        set ipv4-address 192.168.10.14
+    next
+end
+
+The assigned IP must belong to the SSL-VPN IP Pool you configured.
+
+✅ Method 2: Static IP via RADIUS Server (If using AD/RADIUS)
+
+If you're using AD authentication via RADIUS:
+
+Configure Framed-IP-Address on the RADIUS server for that user
+FortiGate will assign that IP on VPN connection
+
+Useful when many users need fixed IPs.
+
+⚠️ Important Notes
+Static IP must be part of your SSL-VPN IP Pool
+Only Tunnel Mode supports static IP assignment
+Avoid overlapping IPs with DHCP/server networks
+🎯 Example Use Case
+
+You are giving 192.168.10.x to VPN users.
+
+Your specific user needs 192.168.10.14 → Set it in the user profile.
+
+If you want, tell me your FortiOS version and I can provide screenshots or exact menu path for your device.
+
+Would you also like to push static firewall policies for this user based on their fixed VPN IP?
+
+Method one is not there in firewall 
+
+Check the method 2 carefully and then tell weather this possible from windows server 2019
+
+Short answer: Yes — you can assign a static IP to an SSL-VPN user using Windows Server 2019 (NPS/RADIUS) by returning the Framed-IP-Address RADIUS attribute from the RADIUS server. FortiGate supports that attribute and will use the IP returned by the RADIUS Access-Accept (provided the FortiGate is set to accept RADIUS IP assignment).
+
+Below I give you the practical options and steps you can try right away (no more questions from me — I’ll assume you want server-side assignment from NPS on Windows Server 2019).
+
+Option A — Configure NPS to return Framed-IP-Address (recommended)
+
+Use this when you want the RADIUS server itself to send a specific IP back in the Access-Accept:
+
+Open Server Manager → Tools → Network Policy Server (NPS) on your Windows Server 2019.
+Go to Policies → Network Policies and create a policy (or edit an existing policy) that matches the user or group you want to give a static IP to.
+In the policy Properties click the Settings tab.
+Under RADIUS Attributes → Standard, click Add.
+Select Framed-IP-Address and enter the IPv4 address you want the user to get (e.g. 192.168.10.14). Save.
+
+Notes:
+
+This sends the Framed-IP-Address in the Access-Accept for that policy match (so you can use multiple policies to return different IPs to different users/groups).
+If you need per-user unique IPs and don’t want many policies, you can also set static IPs on AD user objects (see Option B), or script policy creation.
+Option B — Use Active Directory “Dial-in / Assign Static IP” on the user
+
+Windows AD user objects have a Dial-In option where you can set a static IP. In many deployments this is used with RADIUS (NPS) so the AD static IP can be returned as Framed-IP-Address. Steps:
+
+In Active Directory Users and Computers, open a user → Dial-In tab → Assign Static IP addresses → add the IPv4.
+Ensure NPS/your Network Policy is set to authorize and return attributes; test login.
+
+Caveat: Some admins report that NPS doesn’t automatically translate the AD Dial-In static IP into a Framed-IP-Address in every scenario — if you see that happening, fall back to Option A (explicit Framed-IP in the NPS policy) which is deterministic.
+
+FortiGate side — make sure FortiGate will accept the RADIUS IP
+FortiGate does support the Framed-IP-Address attribute and can use the IP returned by RADIUS for SSL-VPN users. (Fortinet docs & tech-notes show this).
+Some FortiGate setups require enabling the behavior in config (or simply proper RADIUS server config). If you find FortiGate still assigns an IP from the SSL-VPN pool instead of the RADIUS IP, search the FortiGate docs/CLI for enabling RADIUS IP override (many community posts mention a small CLI/config tweak). Example resources showing the workflow are Fortinet Community technical note and forum threads.
+Troubleshooting checklist (if it doesn’t work)
+Verify NPS actually sends Framed-IP-Address (capture RADIUS packets with Wireshark on the server or check NPS logs). If the attribute is missing, FortiGate won’t receive it.
+Ensure the IP you return does not conflict with other subnets or DHCP pools.
+Confirm FortiGate is configured to accept RADIUS attributes from that RADIUS server and that the RADIUS shared secret and NAS-IP are correct.
+If you used AD Dial-In and it didn’t work, try adding Framed-IP directly in the NPS network policy (Option A) — that usually fixes it.
+TL;DR
+Yes, Windows Server 2019 (NPS) can return Framed-IP-Address to assign a static IP to SSL-VPN users. Configure it in an NPS Network Policy (Settings → RADIUS Attributes → Framed-IP-Address) or set the static IP in the AD user Dial-In properties (but Option A is the most reliable). FortiGate supports using that attribute — just ensure the FortiGate/RADIUS configuration allows RADIUS IP assignment.
+
+If you want, I can now:
+
+give the exact NPS GUI steps with screenshots, or
+provide a sample NPS policy configuration and an example FortiGate CLI snippet to ensure the FortiGate accepts the RADIUS IP (I can produce the precise CLI once you tell me your FortiOS version). Which one do you want me to do next?
+
+Good—now your config is almost correct 👍
+You’ve fixed password-renewal = enable, but there is still one critical mistake left that will break LDAP password-change flow.
+
+🚨 Main Issue Still Present
+❌ Your DN is wrong:
+DC = cctnsad, DC = local
+
+👉 Those spaces make it invalid
+
+✅ Fix this immediately
+
+Run:
+
+config user ldap
+edit CCTNSAD_LDAP
+set dn "DC=cctnsad,DC=local"
+end
+🔍 Why this matters
+
+FortiGate uses DN to:
+
+Search user
+Bind user
+Trigger password change
+
+With wrong DN:
+
+❌ LDAP search fails silently
+❌ Password change won’t trigger
+❌ You get confusing errors
+
+✅ Now your LDAP config should look like
+set dn "DC=cctnsad,DC=local"
+set password-renewal enable
+set secure ldaps
+set port 636
+⚠️ Now the MOST IMPORTANT POINT (Don’t miss this)
+
+Even after fixing LDAP fully:
+
+👉 Password change will work ONLY IF login happens via LDAP
+
+🔴 If you login via RADIUS:
+FortiClient → FortiGate → RADIUS → NPS ❌
+
+👉 LDAP is bypassed
+👉 Password change will NOT happen
+
+🟢 To TEST password change (do this)**
+
+Temporarily:
+
+Go to:
+VPN → SSL-VPN Settings
+Change authentication group:
+RADIUS_Group ❌
+→ CCTNSAD_LDAP (LDAP_Group) ✅
+Login with user having:
+User must change password at next logon
+✅ Expected:
+Password change popup appears
+User sets new password
+Login completes
+🔁 After testing
+
+Switch back to:
+
+RADIUS_Group
+🧠 Final Reality (Important for you)
+Feature	LDAP	RADIUS
+Password change	✅	❌
+Static IP	❌	✅
+🧾 Perfect Report Line
+
+👉 “LDAP configuration was corrected by fixing the distinguished name format and enabling password renewal; however, password change functionality is only applicable when LDAP is used as the authentication source.”
+
+🔥 Final Summary
+
+✔ Your LDAP config → now correct (after DN fix)
+✔ Your RADIUS config → already correct
+❗ Limitation → cannot combine both in single login flow
+
+🚀 If you want next
+
+I can:
+
+✅ Design best hybrid workflow (clean and practical)
+✅ Help you show this clearly in presentation
+✅ Or fix your static IP + VPN flow completely
+
+Just tell 👍
+
+nutes
+FG201ETK18904225 # config user ldap
+
+FG201ETK18904225 (ldap) # show full-configuration
+config user ldap
+    edit "CCTNSNOC-LDAP"
+        set server "adserver.cctnsnoc.local"
+        set secondary-server ''
+        set tertiary-server ''
+        set source-ip 0.0.0.0
+        set cnid "sAMAccountName"
+        set dn "DC=cctnsnoc,DC=local"
+        set type regular
+        set username "CCTNSNOC\\administrator"
+        set password ENC JirhDkIlHnO0AIuoo1ZxF7TeAgNH4H+5dDVceF9sYHSQnnqpVArtU9coqMHEBrnEhDXM7fxTZnOMqDywwXzeJBOOksXr5usnTPScjXIbu8tV12XD/mtggMTjfU6bKdXZZskvNtpI+eqCqqSef4CHvj7ewN0E4F66AtBY8BpIyv3Us2JgJ1V8lKvilkIgfA7ERYANhA==
+        set group-member-check user-attr
+        set group-search-base ''
+        set group-filter ''
+        set secure ldaps
+        set ca-cert "CA_Cert_1"
+        set port 636
+        set password-expiry-warning enable
+        set password-renewal enable
+        set member-attr "memberOf"
+        set account-key-processing same
+        set account-key-name "userPrincipalName"
+    next
+    edit "CCTNSAD_LDAP"
+        set server "10.234.2.121"
+        set secondary-server ''
+        set tertiary-server ''
+        set source-ip 0.0.0.0
+        set cnid "sAMAccountName"
+        set dn "DC=cctnsad, DC=local"
+        set type regular
+        set username "administrator@cctnsad.local"
+        set password ENC aqqHuvd7QMz7g8jkU8nx95qZ8ZmggVPoLqM6o3mJvkJsd9wTAcbR/hbQG9/b16LJ8kn/iDm9oWgLiSQa2PDcDwoBb1s/J15UpoRhbO2x35zo0EHQWGK5057FVKnSpGesTJl0wq6yotC5FOVpn7WDzA6379tTew5wpazMBnzFZQfTI8X/DY8hXnM/9ct9pv7Ndptusg==
+        set group-member-check user-attr
+        set group-search-base ''
+        set group-filter ''
+        set secure ldaps
+        set ca-cert "CA_Cert_2"
+        set port 636
+        set password-expiry-warning disable
+        set password-renewal enable
+        set member-attr "memberOf"
+        set account-key-processing same
+        set account-key-name "userPrincipalName"
+    next
+end
+
+FG201ETK18904225 (ldap) #
+
+Good—now your config is almost perfect, just one last detail to clean up and then I’ll give you the final reality check so you don’t keep troubleshooting in circles.
+
+✅ What is correct now
+
+For CCTNSAD_LDAP:
+
+✔ LDAPS (636) → correct
+✔ CA certificate → correct
+✔ Username (UPN) → correct
+✔ password-renewal enable → correct
+✔ IP instead of FQDN → good
+✔ Attribute settings → fine
+⚠️ One Minor Issue Still There
+❌ DN still has a space
+DC=cctnsad, DC=local   ❌
+
+👉 It should be:
+
+config user ldap
+edit CCTNSAD_LDAP
+set dn "DC=cctnsad,DC=local"
+end
+🎯 After fixing DN → LDAP is 100% correct
+🔥 Now the MOST IMPORTANT PART (Don’t skip this)
+
+Even with perfect LDAP config, your earlier issue will STILL happen if:
+
+SSL VPN → RADIUS authentication
+🧠 Why you are stuck
+
+You are trying to achieve:
+
+RADIUS + Password Change
+
+👉 Which is NOT supported by design
+
+🔁 Your current flow
+FortiClient → FortiGate → RADIUS → NPS
+                              ↓
+                        Reason 33 ❌
+
+👉 LDAP is NEVER used here
+
+✅ When your LDAP config will actually work
+
+Only in this case:
+
+FortiClient → FortiGate → LDAP (LDAPS) → AD
+🧪 Do this TEST (very important)
+
+Temporarily:
+
+Go to:
+VPN → SSL-VPN Settings
+Change:
+RADIUS_Group ❌
+→ LDAP_Group (CCTNSAD_LDAP) ✅
+Login with user having:
+User must change password at next logon
+✅ Expected result:
+Password change popup appears
+User sets new password
+Login works
+🔁 Then switch back:
+LDAP_Group ❌
+→ RADIUS_Group ✅
+⚠️ Final Truth (You must accept this)
+Feature	LDAP	RADIUS
+Password Change	✅	❌
+Static IP	❌	✅
+🧾 What to write in your report
+
+👉 “LDAP over SSL (LDAPS) was configured with password renewal enabled to support password change functionality; however, this feature operates only when LDAP is used as the primary authentication mechanism and is not applicable in RADIUS-based authentication flows.”
+
+🚀 Your setup status now
+
+✔ LDAP → Fully correct
+✔ RADIUS → Fully correct
+✔ SSL VPN → Working
+❗ Limitation → Protocol behavior
+
+👍 My honest recommendation
+
+For your project/demo:
+
+Show password change using LDAP
+Show static IP using RADIUS
+Explain why both cannot happen together
+
+👉 This will actually impress evaluators more
+
+If you want, I can next:
+
+✅ Draw clean architecture diagram (very useful)
+✅ Help you prepare final PPT explanation
+✅ Or give interview-level explanation of this limitation
+
+Just tell 👍
+
+
+FG201ETK18904225 (ldap) # show full-configuration
+config user ldap
+    edit "CCTNSNOC-LDAP"
+        set server "adserver.cctnsnoc.local"
+        set secondary-server ''
+        set tertiary-server ''
+        set source-ip 0.0.0.0
+        set cnid "sAMAccountName"
+        set dn "DC=cctnsnoc,DC=local"
+        set type regular
+        set username "CCTNSNOC\\administrator"
+        set password ENC AVrB+YtkSqZCl3iXXxVCCST3fX1gQOG5btmkogEUBi6EPpz9DosDQ00cjC+wCyZ+Efq5/lsY5PjyQ7A0+4UL79uhwa1HfxRpKzIqWKHDgF5H+VaYMnEMRT22IQpTSSSezUeHipRCRDyU2oCs9kUxh+N76bpfPGKzwhNCEIcWhrc0eqlEvqGDStiQpSc6mhd4lxIoTA==
+        set group-member-check user-attr
+        set group-search-base ''
+        set group-filter ''
+        set secure ldaps
+        set ca-cert "CA_Cert_1"
+        set port 636
+        set password-expiry-warning enable
+        set password-renewal enable
+        set member-attr "memberOf"
+        set account-key-processing same
+        set account-key-name "userPrincipalName"
+    next
+    edit "CCTNSAD_LDAP"
+        set server "10.234.2.121"
+        set secondary-server ''
+        set tertiary-server ''
+        set source-ip 0.0.0.0
+        set cnid "sAMAccountName"
+        set dn "DC=cctnsad,DC=local"
+        set type regular
+        set username "administrator@cctnsad.local"
+        set password ENC d/JBTxLZctABeNsJnM0AViuWWyOZsXkefpF/6CZKixQdbE6eonGdpqrO5voKaFqVdfrWJvniIe7JqIHIiZpR7zWn2fswch70aEsptLrbuLyDaxqglD35IVI9inme+gB5OowBMQDCpvU114W8LfqKJqsD+T+Xi+mYpV4WFhIya8CQfqhCugwq6NdJcKgVRWBZjCbtEw==
+        set group-member-check user-attr
+        set group-search-base ''
+        set group-filter ''
+        set secure ldaps
+        set ca-cert "CA_Cert_2"
+        set port 636
+        set password-expiry-warning disable
+        set password-renewal enable
+        set member-attr "memberOf"
+        set account-key-processing same
+        set account-key-name "userPrincipalName"
+    next
+end
+
+FG201ETK18904225 (ldap) #
+
+Now your config is clean and technically correct 👍
+There is no mistake left in LDAP configuration.
+
+✅ Final Validation of Your LDAP Config
+
+For CCTNSAD_LDAP:
+
+✔ Server: 10.234.2.121 → OK
+✔ DN: DC=cctnsad,DC=local → FIXED ✅
+✔ Username: administrator@cctnsad.local → Correct
+✔ LDAPS (636) → Enabled
+✔ CA Cert → Selected
+✔ password-renewal enable → Enabled ✅
+✔ password-expiry-warning → OK
+
+👉 This LDAP config is now 100% correct
+
+🔥 So why is password change still not working?
+
+Because of THIS (final root cause):
+
+You are authenticating via RADIUS
+🧠 Key Technical Truth (Final Understanding)
+
+FortiGate works like this:
+
+🔴 When VPN uses RADIUS:
+FortiClient → FortiGate → RADIUS → NPS
+LDAP is NOT used
+Password renewal setting is IGNORED
+
+NPS returns:
+
+Reason 33 → Password expired
+Login fails ❌
+🟢 When VPN uses LDAP:
+FortiClient → FortiGate → LDAP (LDAPS) → AD
+Password renewal is triggered
+Password change popup appears
+Works ✅
+⚠️ Critical Point
+
+👉 FortiGate does NOT chain authentication
+
+It does NOT do:
+
+Try RADIUS → if fail → use LDAP ❌
+🎯 Your Current Situation
+Component	Status
+LDAP	✅ Perfect
+RADIUS	✅ Working
+NPS	✅ Working
+Password change via VPN	❌ Not possible with RADIUS
+🧪 Final Proof Test (Do this once)
+
+👉 Change SSL VPN group to LDAP temporarily:
+
+VPN → SSL-VPN Settings
+
+Replace:
+
+RADIUS_Group ❌
+→ LDAP_Group (CCTNSAD_LDAP) ✅
+Login with expired password user
+
+✔ You WILL get password change popup
+✔ This proves your LDAP config is perfect
+
+🔁 Then revert back:
+LDAP_Group ❌
+→ RADIUS_Group ✅
+🧾 Final Report Statement (Very Important)
+
+👉 “LDAP over SSL (LDAPS) was successfully configured with password renewal capability; however, it was observed that password change functionality is only triggered when LDAP is used as the primary authentication method. In RADIUS-based authentication, password expiry results in access rejection due to protocol limitations.”
+
+🚀 Final Recommendation (Real-world design)
+
+Since your requirement is:
+
+✔ Static IP → requires RADIUS
+
+👉 You must:
+
+Use:
+RADIUS → for VPN login
+LDAP → only for password change (separately)
+🔥 Simple Practical Workflow
+Admin creates user
+Admin sets password (no “must change”)
+User logs in VPN
+Static IP assigned
+👍 Final Verdict
+
+👉 You are NOT doing anything wrong
+👉 Your configuration is enterprise-level correct
+👉 Limitation is protocol design, not your setup
+
+If you want next:
+
+✅ I can give final architecture diagram for your presentation
+✅ Or best workaround design used in real organizations
+✅ Or help finalize your project PPT
+
+Just tell 👍

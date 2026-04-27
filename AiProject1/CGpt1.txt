@@ -1,0 +1,704 @@
+Pasted markdown(1).md
+File
+Below is the summary of my chat with you in which i configured ssl vpn with radius server. Now  i am configuring a new AD Server for this task help me in configuring that AD Server
+
+
+
+Great, Bhanu — you’ve already done the hard part with Fortinet + RADIUS. Now setting up a new Active Directory (AD) server for SSL VPN authentication (via NPS/RADIUS) is the right move for a cleaner, scalable design.
+
+I’ll guide you step-by-step in a practical, production-style way based on your earlier setup. I’ll also align it with your report so everything matches.
+
+🧩 Objective
+
+Set up a new Windows Server (AD + NPS) to:
+
+Authenticate SSL VPN users (Fortinet)
+Assign static IP via RADIUS
+Replace dependency on old setup
+⚙️ Step 1: Install Windows Server & Basic Setup
+✅ Do this first:
+Install Windows Server 2019 / 2022
+Set:
+Static IP (VERY IMPORTANT)
+Preferred DNS → Same server (after AD install)
+Example:
+IP: 10.10.10.5
+DNS: 10.10.10.5
+
+📸 Add this in your report:
+
+ipconfig output
+(as you already mentioned in your document )
+🏢 Step 2: Install Active Directory Domain Services (AD DS)
+👉 Install Role:
+Server Manager → Add Roles →
+✔ Active Directory Domain Services
+👉 Promote to Domain Controller:
+Choose:
+New Forest
+
+Domain name:
+
+cctnsnoc.local
+After reboot:
+Your server becomes Domain Controller
+👥 Step 3: Create VPN Users in AD
+
+Go to:
+👉 Active Directory Users & Computers
+
+Create users like:
+
+vpnuser1
+vpnuser2
+⚠️ Important Settings:
+Disable:
+❌ "User must change password at next logon"
+(You already saw issue with dynamic IP due to this)
+Enable:
+✔ Password never expires (optional for testing)
+📡 Step 4: Install NPS (RADIUS Server)
+Install Role:
+Network Policy and Access Services
+Select:
+✔ Network Policy Server (NPS)
+🔐 Step 5: Register NPS in AD
+
+Open:
+👉 NPS Console
+
+Right click:
+👉 NPS (Local) → Register server in Active Directory
+
+✔ This allows NPS to read AD users
+
+🌐 Step 6: Add Fortinet Firewall as RADIUS Client
+
+Go to:
+👉 NPS → RADIUS Clients → New
+
+Fill:
+Name: Fortinet
+Address: <Firewall IP>
+Shared Secret: (same as Fortinet config)
+📜 Step 7: Create Network Policy (Most Important)
+
+Go to:
+👉 NPS → Network Policies → New
+
+Configure:
+🔹 Conditions:
+
+User Group → Create group:
+
+VPN_Users
+
+(Add your AD users to this group)
+
+🔹 Constraints:
+Authentication:
+✔ MS-CHAPv2
+🔹 Settings (CRITICAL PART 🔥)
+
+Go to:
+👉 RADIUS Attributes → Standard
+
+Add:
+
+✅ Static IP:
+Framed-IP-Address = 10.10.10.10
+
+👉 This is what Fortinet uses to assign static IP
+
+📸 This is your MOST IMPORTANT screenshot (as per your report )
+
+🔁 Step 8: Verify Fortinet Configuration
+
+Make sure in Fortinet:
+
+RADIUS server points to:
+
+AD/NPS Server IP
+Same shared secret
+SSL VPN user group linked to RADIUS
+🧪 Step 9: Testing
+Use:
+FortiClient
+Test:
+Login with AD user
+Check:
+Authentication success
+Assigned IP
+Expected Result:
+
+✔ Login successful
+✔ Static IP assigned (from NPS)
+
+⚠️ Common Issues (From Your Scenario)
+❌ Issue: First login gives dynamic IP
+
+✔ Cause:
+
+Password change required
+
+✔ Fix:
+
+Disable "User must change password"
+❌ Issue: Authentication fails
+
+✔ Check:
+
+NPS registered in AD
+Firewall IP added correctly
+Shared secret match
+❌ Issue: No static IP
+
+✔ Check:
+
+Framed-IP configured
+Policy order (top priority)
+🏗️ Recommended Production Improvements
+
+Since you’re designing for Police infra:
+
+🔹 1. Create IP Pool Logic
+
+Instead of 1 IP:
+
+Assign per user or per station
+🔹 2. High Availability
+Secondary AD + NPS server
+🔹 3. Logging
+Enable NPS logs
+Integrate with SIEM
+🔹 4. Naming Convention
+PS_LKO_001
+PS_KNP_023
+🔚 Final Architecture (Simple View)
+Fortinet Firewall
+        ↓
+     SSL VPN
+        ↓
+     RADIUS (NPS)
+        ↓
+   Active Directory
+🚀 Next Step (I can help you with)
+
+If you want, I can now:
+
+✅ Draw exact architecture diagram (for your presentation)
+✅ Give Fortinet CLI config (production ready)
+✅ Help design IP allocation plan for 3000 police stations
+✅ Create PowerPoint for this AD + VPN setup
+
+Just tell me 👍
+
+Yes—LDAP (with Active Directory) can handle both authentication and password change, but there are some important conditions and trade-offs in your exact setup.
+
+🧠 Short Answer
+LDAP ✔ Authentication
+LDAP ✔ Password change
+BUT → depends on how it’s implemented ⚠️
+🔐 1. LDAP for Authentication
+
+When you use LDAP on Fortinet:
+
+FortiGate → LDAP → Active Directory
+✔ What happens:
+User enters username/password
+FortiGate validates against AD via LDAP
+
+✔ Works perfectly
+✔ No NPS required
+
+🔑 2. LDAP for Password Change
+
+👉 Yes, LDAP can support password change, but only if:
+
+✔ Conditions:
+Use LDAPS (LDAP over SSL)
+AD allows password change
+Client supports password change flow
+🧠 Flow:
+User logs in
+↓
+Password expired / must change
+↓
+Client prompts for new password
+↓
+LDAP updates password in AD ✔
+⚠️ BUT — Critical Limitations (Important for YOU)
+❌ 1. No Static IP (Your Current Requirement)
+
+With LDAP:
+
+Framed-IP (RADIUS feature) ❌ NOT supported
+
+👉 So this breaks your key requirement:
+
+CCTNS → Static IP per police station ❌
+❌ 2. Limited Control Compared to NPS
+No RADIUS policies
+No attribute-based control (like Framed-IP)
+Less flexibility
+❌ 3. Password Change Depends on Client
+Works in:
+FortiClient (some versions)
+Domain-joined systems
+May NOT work properly in:
+Browser-based SSL VPN
+⚖️ LDAP vs RADIUS (Your Case)
+Feature	LDAP	RADIUS (NPS)
+Authentication	✔	✔
+Password change	✔	❌
+Static IP	❌	✔
+Policy control	Limited	Strong
+Best for your use case	❌	✔
+🎯 For Your Project (Police / CCTNS Setup)
+
+You need:
+
+✔ Static IP per user/station
+✔ Scalable authentication
+✔ Central control
+
+👉 So:
+
+RADIUS (NPS) = MUST ✔
+LDAP alone = NOT sufficient ❌
+🧠 Best Architecture (Recommended)
+VPN Login → RADIUS (NPS) ✔
+Password Change → Separate Portal ✔
+🔄 If You Still Want LDAP
+
+👉 Use LDAP only if:
+
+You don’t need static IP
+You want password change inside VPN
+Simpler setup is acceptable
+🎯 Final Conclusion
+LDAP can do authentication + password change ✔
+BUT it cannot replace RADIUS in your design ❌
+🚀 Recommendation for You
+
+Stick with:
+
+RADIUS + Password Change Portal = Best design ✔
+
+If you want next, I can help you:
+
+👉 Configure LDAP on FortiGate (test setup)
+👉 OR setup IIS password change portal step-by-step
+👉 OR design final architecture for 3000 police stations
+
+Just tell me 👍
+
+ok, Static IP is very important for me. I will go with NPS + LDAP for password change only. Now tell me how to configure LDAP for password change
+
+Good decision, Bhanu — that’s exactly how most enterprises do it 👍
+
+👉 Final design you’re going for:
+
+VPN Login → RADIUS (NPS) ✔
+Password Change → LDAP ✔
+
+Now I’ll guide you step-by-step to enable LDAP for password change on FortiGate.
+
+🧠 Important Concept First
+
+👉 LDAP will be used ONLY for password change, not for VPN authentication.
+
+So:
+
+✔ RADIUS → handles login + static IP
+✔ LDAP → allows password update in AD
+⚠️ Mandatory Requirement (VERY IMPORTANT)
+
+👉 Password change via LDAP works ONLY with LDAPS (secure LDAP)
+
+LDAP (389) ❌ Not allowed
+LDAPS (636) ✔ Required
+🧭 STEP 1 — Enable LDAPS on AD Server
+🔹 1. Install Certificate on Domain Controller
+
+You need a certificate for:
+
+Server Authentication
+FQDN = your AD server name
+Quick Method:
+Open:
+mmc
+Add Snap-in:
+Certificates → Computer Account
+Go to:
+Personal → Certificates
+Install certificate (from CA or self-signed)
+✔ After install:
+
+Restart service:
+
+net stop ntds
+net start ntds
+
+OR reboot server
+
+🔹 2. Verify LDAPS
+
+Run on AD server:
+
+ldp.exe
+Connect → Port 636
+Enable SSL
+
+✔ If connects → LDAPS working
+
+🧭 STEP 2 — Configure LDAP on FortiGate
+🔹 CLI Configuration
+
+Run:
+
+config user ldap
+edit "AD-LDAP"
+    set server "10.10.10.5"
+    set cnid "sAMAccountName"
+    set dn "dc=cctnsad,dc=local"
+    set type regular
+    set username "CN=Administrator,CN=Users,DC=cctnsad,DC=local"
+    set password <your_password>
+    set secure ldaps
+    set port 636
+end
+🔹 Key Parameters Explained
+Field	Meaning
+server	AD server IP
+cnid	login attribute
+dn	base DN
+username	bind account
+secure ldaps	enable SSL
+port 636	LDAPS
+🧭 STEP 3 — Test LDAP Connection
+
+Run:
+
+diagnose test authserver ldap AD-LDAP bhanuvpn <password>
+✔ Expected:
+Authentication successful
+🧭 STEP 4 — Enable Password Change Feature
+
+Now go to:
+
+config user setting
+set auth-type ldap
+end
+
+👉 This allows FortiGate to use LDAP for password operations
+
+🧭 STEP 5 — Test Password Change
+🔹 Scenario:
+Expire user password in AD
+Login via SSL VPN
+✔ Expected:
+Prompt:
+"Your password has expired. Change password"
+Enter:
+Old password
+New password
+
+✔ Password updated in AD
+
+⚠️ Important Limitations
+❌ 1. Browser SSL VPN
+
+Password change may NOT work properly
+
+✔ 2. Works best with:
+FortiClient
+Domain-joined systems
+❌ 3. RADIUS + LDAP mixed flow
+
+Sometimes FortiGate:
+
+Uses only RADIUS
+Skips LDAP
+
+👉 So behavior depends on config
+
+🎯 Recommended Practical Approach
+🔹 Keep:
+RADIUS → Authentication ✔
+🔹 Use LDAP for:
+Password change testing
+Future integration
+🔹 ALSO keep fallback:
+
+👉 Password change portal (IIS)
+
+🧠 Final Architecture
+User → FortiClient
+        ↓
+FortiGate
+   ↓          ↓
+RADIUS       LDAP
+(Auth ✔)     (Password change ✔)
+   ↓
+Active Directory
+🚀 What I Recommend Next
+
+Do this in order:
+
+Setup LDAPS
+Configure LDAP in FortiGate
+Test with diagnose test authserver
+Try password expiry scenario
+💡 Important Tip
+
+If LDAP password change behaves inconsistent:
+
+👉 Don’t fight it too much
+👉 Use IIS password portal (more stable)
+
+If you want next, I can:
+
+✅ Help you generate self-signed certificate for LDAPS
+✅ Guide you through ldp.exe testing step-by-step
+✅ Show real working password change test scenario
+
+Just tell me 👍
+
+tell me the steps to configure AD CS Configuration
+
+Great, Bhanu — setting up Active Directory Certificate Services (AD CS) is exactly what you need to enable LDAPS (port 636) for password change.
+
+I’ll guide you step-by-step (production style).
+
+🎯 Objective
+
+Configure Active Directory Certificate Services so that:
+
+AD Server → Has valid certificate → LDAPS works → Password change possible
+🧭 STEP 1 — Install AD CS Role
+👉 Go to:
+Server Manager → Add Roles and Features
+Select:
+
+✔ Active Directory Certificate Services
+
+On Role Services screen:
+
+Select:
+
+✔ Certification Authority
+
+(Optional later: Web Enrollment)
+
+Click:
+
+✔ Next → Install
+
+🧭 STEP 2 — Configure AD CS
+
+After installation:
+
+👉 Click:
+
+⚠️ Configure Active Directory Certificate Services
+🧙‍♂️ AD CS Configuration Wizard
+🔹 Step 1: Credentials
+
+✔ Use:
+
+Domain Administrator
+
+✔ Next
+
+🔹 Step 2: Role Services
+
+✔ Select:
+
+Certification Authority
+
+✔ Next
+
+🔹 Step 3: Setup Type
+
+Select:
+
+Enterprise CA  ✔
+
+👉 Because:
+
+Integrated with AD
+Auto certificate support
+
+✔ Next
+
+🔹 Step 4: CA Type
+
+Select:
+
+Root CA  ✔
+
+👉 This is your first CA
+
+✔ Next
+
+🔹 Step 5: Private Key
+
+Select:
+
+Create a new private key  ✔
+
+✔ Next
+
+🔹 Step 6: Cryptography
+
+Recommended:
+
+Key Length: 2048
+Hash: SHA256
+Provider: RSA#Microsoft Software Key Storage Provider
+
+✔ Next
+
+🔹 Step 7: CA Name
+
+Example:
+
+CCTNS-ROOT-CA
+
+✔ Next
+
+🔹 Step 8: Validity Period
+
+Recommended:
+
+5 years
+
+✔ Next
+
+🔹 Step 9: Database Locations
+
+Keep default:
+
+C:\Windows\System32\CertLog
+
+✔ Next
+
+🔹 Step 10: Confirmation
+
+✔ Click:
+
+Configure
+✅ AD CS Installed Successfully
+🧭 STEP 3 — Configure Certificate Template for LDAPS
+
+Now we need a certificate for Domain Controller
+
+🔹 Open:
+certsrv.msc
+🔹 Go to:
+Certificate Templates → Manage
+🔹 Find Template:
+Domain Controller
+
+OR
+
+Domain Controller Authentication
+🔹 Right click:
+Duplicate Template
+🔹 Configure:
+General Tab:
+Name: LDAPS-DC
+Security Tab:
+
+Add:
+
+Domain Controllers → Enroll ✔
+Extensions Tab:
+
+Ensure:
+
+✔ Server Authentication present
+
+✔ Click OK
+
+🧭 STEP 4 — Publish Template
+
+Back in:
+
+Certification Authority console
+Right click:
+Certificate Templates → New → Certificate Template to Issue
+Select:
+LDAPS-DC
+
+✔ OK
+
+🧭 STEP 5 — Request Certificate (Domain Controller)
+🔹 Open:
+mmc
+🔹 Add Snap-in:
+Certificates → Computer Account
+🔹 Go to:
+Personal → Certificates
+🔹 Right click:
+All Tasks → Request New Certificate
+🔹 Select:
+LDAPS-DC
+
+✔ Enroll
+
+🧭 STEP 6 — Verify Certificate
+
+Double click certificate:
+
+✔ Must show:
+
+Server Authentication
+Issued to = AD Server FQDN
+🧭 STEP 7 — Restart Services
+
+Run:
+
+net stop ntds
+net start ntds
+
+OR simply:
+
+👉 Restart server
+
+🧭 STEP 8 — Test LDAPS
+🔹 Run:
+ldp.exe
+Connect:
+Server: localhost
+Port: 636
+✔ SSL checked
+✔ Expected:
+Connected successfully
+🎯 Final Result
+AD CS ✔
+Certificate ✔
+LDAPS ✔
+LDAP Password Change ✔
+🧠 Common Mistakes (Avoid These)
+
+❌ No certificate installed → LDAPS fails
+❌ Wrong template → no Server Authentication
+❌ Port 636 blocked
+❌ Using LDAP (389) instead of LDAPS
+
+🚀 Next Step
+
+After this:
+
+👉 Configure LDAP in FortiGate (already discussed)
+👉 Test password change
+
+If you want, next I can:
+
+✅ Show quick shortcut method (auto-enroll certificate)
+✅ Help verify LDAPS with PowerShell
+✅ Test password change end-to-end
+
+Just tell me 👍
