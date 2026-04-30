@@ -7,9 +7,10 @@
 **Status:** Functional Prototype (Vanilla JS SPA)
 
 ## Current Structure
-- `index.html`: Main structure of the application, including sections for Home, Incident Reporting, Tracking, and Admin Dashboard.
-- `script.js`: Core application logic including navigation, form handling, local storage persistence, and admin functionality.
-- `style.css`: Professional government-themed styling and responsive design.
+- `index.html`: Main structure of the application.
+- `script.js`: Core application logic.
+- `style.css`: Professional government-themed styling.
+- `logo.png`: Local official logo image.
 
 ## Features
 - **Incident Reporting:** Form for citizens to submit details of various incident types.
