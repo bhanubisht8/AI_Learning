@@ -199,12 +199,19 @@
 
     </main>
 
-    <!-- Success Modal (Hidden by default) -->
+    <!-- Success Modal -->
     <div id="success-modal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 500px;">
             <div class="success-icon">✓</div>
             <h2>Report Submitted!</h2>
             <p>Your Complaint ID is: <strong id="new-id"></strong></p>
+            
+            <!-- AI Next Steps Area -->
+            <div id="ai-next-steps" class="ai-box" style="display: none; margin: 20px 0; text-align: left; background: #e8f4fd; padding: 15px; border-radius: 8px; border-left: 5px solid var(--primary-color);">
+                <h4 style="margin: 0 0 10px 0; color: var(--primary-color);">🤖 Cyber Mitra's Advice:</h4>
+                <div id="next-steps-content" style="font-size: 0.9rem; line-height: 1.5;">Generating safety tips...</div>
+            </div>
+
             <p>Please keep this ID for future tracking.</p>
             <button class="btn btn-primary" onclick="app.closeModal()">Close</button>
         </div>
@@ -212,16 +219,66 @@
 
     <!-- Detail Modal (Hidden by default) -->
     <div id="detail-modal" class="modal">
-        <div class="modal-content" style="max-width: 600px; text-align: left;">
+        <div class="modal-content" style="max-width: 800px; text-align: left;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h2 style="margin: 0;">Incident Details</h2>
+                <div id="ai-priority-badge"></div>
                 <button class="btn btn-outline" onclick="app.closeDetailModal()" style="padding: 5px 15px;">&times;</button>
             </div>
-            <div id="detail-content" class="detail-grid">
-                <!-- Content injected by JS -->
+            
+            <div class="detail-grid-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div id="detail-content" class="detail-grid">
+                    <!-- Content injected by JS -->
+                </div>
+                
+                <!-- AI Admin Insights Sidebar -->
+                <div class="ai-admin-sidebar" style="background: #f0f4f8; padding: 20px; border-radius: 10px; border: 1px solid #d1d9e0;">
+                    <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 1.2rem;">🤖</span> AI Insights
+                    </h3>
+                    
+                    <div class="ai-insight-section">
+                        <strong>AI Executive Summary:</strong>
+                        <p id="ai-summary" style="font-size: 0.85rem; font-style: italic; color: #444;">Analyzing description...</p>
+                    </div>
+                    
+                    <div class="ai-insight-section" style="margin-top: 15px;">
+                        <strong>English Translation:</strong>
+                        <p id="ai-translation" style="font-size: 0.85rem; color: #444;">Checking language...</p>
+                    </div>
+                </div>
             </div>
+
             <div style="margin-top: 30px; text-align: right;">
                 <button class="btn btn-primary" onclick="app.closeDetailModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Assistant (Cyber Mitra) -->
+    <div id="ai-chat-widget">
+        <button id="ai-chat-toggle" class="chat-fab" title="Cyber Mitra AI Assistant">
+            <span class="chat-icon">🤖</span>
+            <span class="chat-label">Cyber Mitra</span>
+        </button>
+        
+        <div id="ai-chat-window" class="chat-window">
+            <div class="chat-header">
+                <div class="header-info">
+                    <span class="status-dot"></span>
+                    <h3>Cyber Mitra</h3>
+                    <p>AI Assistant (Technical Services)</p>
+                </div>
+                <button id="ai-chat-close">&times;</button>
+            </div>
+            <div id="ai-chat-messages" class="chat-messages">
+                <div class="message ai-message">
+                    नमस्ते! मैं साइबर मित्र हूँ। मैं आपकी कैसे सहायता कर सकता हूँ? (Hello! I am Cyber Mitra. How can I help you today?)
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="ai-user-input" placeholder="Type your question...">
+                <button id="ai-send-btn">➤</button>
             </div>
         </div>
     </div>
@@ -233,6 +290,15 @@
         </div>
     </footer>
 
+    <!-- Google Generative AI SDK -->
+    <script type="importmap">
+    {
+      "imports": {
+        "@google/generative-ai": "https://esm.run/@google/generative-ai"
+      }
+    }
+    </script>
     <script src="script.js"></script>
+    <script type="module" src="ai-assistant.js"></script>
 </body>
 </html>

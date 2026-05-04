@@ -128,10 +128,13 @@ const app = {
     /**
      * Handle Form Submission
      */
-    handleFormSubmission: function() {
+    handleFormSubmission: async function() {
         // Generate Unique ID
         const id = 'UPP-' + Math.floor(100000 + Math.random() * 900000);
         const date = new Date().toLocaleDateString();
+
+        const description = document.getElementById('description').value;
+        const type = document.getElementById('incidentType').value;
 
         // Gather Data
         const complaint = {
@@ -140,19 +143,46 @@ const app = {
             name: document.getElementById('fullName').value,
             mobile: document.getElementById('mobile').value,
             email: document.getElementById('email').value,
-            type: document.getElementById('incidentType').value,
+            type: type,
             location: document.getElementById('location').value,
-            description: document.getElementById('description').value,
-            status: 'Pending'
+            description: description,
+            status: 'Pending',
+            aiUrgency: 'Medium', // Default
+            aiTranslation: ''
         };
 
-        // Save to state and storage
+        // Save immediately to state
         this.complaints.push(complaint);
         this.saveData();
 
-        // Show Success Modal
+        // Show Success Modal immediately
         document.getElementById('new-id').textContent = id;
         document.getElementById('success-modal').classList.add('active');
+        
+        // --- AI ENHANCEMENTS IN BACKGROUND ---
+        
+        // 1. Show AI Advice in Success Modal
+        const adviceBox = document.getElementById('ai-next-steps');
+        const adviceContent = document.getElementById('next-steps-content');
+        if (adviceBox && adviceContent) {
+            adviceBox.style.display = 'block';
+            adviceContent.innerHTML = '🤖 Cyber Mitra is preparing safety advice for you...';
+            
+            const nextSteps = await aiAssistant.generateNextSteps(type, description);
+            adviceContent.innerHTML = nextSteps.replace(/\n/g, '<br>');
+        }
+
+        // 2. Assess Urgency & Translation for Admin (Background)
+        const urgency = await aiAssistant.assessUrgency(description);
+        const translation = await aiAssistant.translateToEnglish(description);
+        
+        // Update the stored complaint with AI data
+        const index = this.complaints.findIndex(c => c.id === id);
+        if (index !== -1) {
+            this.complaints[index].aiUrgency = urgency;
+            this.complaints[index].aiTranslation = translation;
+            this.saveData();
+        }
 
         // Reset Form
         document.getElementById('incident-form').reset();
@@ -163,6 +193,9 @@ const app = {
      */
     closeModal: function() {
         document.getElementById('success-modal').classList.remove('active');
+        // Reset the advice box for next time
+        const adviceBox = document.getElementById('ai-next-steps');
+        if (adviceBox) adviceBox.style.display = 'none';
         this.navigateTo('home');
     },
 
@@ -235,9 +268,23 @@ const app = {
      * View Detailed Report
      * @param {string} id - Complaint ID
      */
-    viewDetails: function(id) {
+    viewDetails: async function(id) {
         const found = this.complaints.find(c => c.id === id);
         if (!found) return;
+
+        // 1. Set Initial UI for AI Features
+        const priorityBadge = document.getElementById('ai-priority-badge');
+        const summaryText = document.getElementById('ai-summary');
+        const translationText = document.getElementById('ai-translation');
+        
+        if (priorityBadge) {
+            const urgency = found.aiUrgency || 'Medium';
+            const color = urgency === 'High' ? '#e74c3c' : (urgency === 'Medium' ? '#f39c12' : '#27ae60');
+            priorityBadge.innerHTML = `<span class="badge" style="background: ${color}; color: white; padding: 5px 10px; border-radius: 4px;">Priority: ${urgency}</span>`;
+        }
+        
+        if (summaryText) summaryText.innerHTML = "Generating AI Summary...";
+        if (translationText) translationText.innerHTML = found.aiTranslation || "No translation needed (Already in English).";
 
         const content = document.getElementById('detail-content');
         content.innerHTML = `
@@ -250,7 +297,7 @@ const app = {
             <strong>Incident Type:</strong> <p>${found.type}</p>
             <strong>Location:</strong> <p>${found.location}</p>
             <strong style="grid-column: 1 / -1; margin-top: 10px;">Description:</strong>
-            <p style="grid-column: 1 / -1; background: #f9f9f9; padding: 10px; border-radius: 4px; border: 1px solid #eee;">${found.description}</p>
+            <p style="grid-column: 1 / -1; background: #f9f9f9; padding: 10px; border-radius: 4px; border: 1px solid #eee; margin-bottom: 0;">${found.description}</p>
             
             <div style="grid-column: 1 / -1; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
                 <div class="form-group">
@@ -267,6 +314,14 @@ const app = {
         `;
 
         document.getElementById('detail-modal').classList.add('active');
+
+        // 2. Fetch AI Summary in Real-time (if session is active)
+        if (window.aiAssistant && aiAssistant.chat) {
+            const summary = await aiAssistant.generateAdminSummary(found.description);
+            if (summaryText) summaryText.innerHTML = summary;
+        } else {
+            if (summaryText) summaryText.innerHTML = "AI Summary unavailable (Offline).";
+        }
     },
 
     /**
